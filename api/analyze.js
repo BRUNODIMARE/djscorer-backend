@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // Permitir CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -12,17 +11,31 @@ export default async function handler(req, res) {
     const { screenshotUrl } = req.body;
     console.log('Screenshot URL recibido:', screenshotUrl);
     
-    // Obtener screenshot
+    // Intentar obtener el screenshot
     const imgResponse = await fetch(screenshotUrl);
+    console.log('Screenshot response status:', imgResponse.status);
+    
     if (!imgResponse.ok) {
-      throw new Error(`Failed to fetch screenshot: ${imgResponse.status}`);
+      throw new Error(`Screenshot service returned ${imgResponse.status}`);
+    }
+    
+    const contentType = imgResponse.headers.get('content-type');
+    console.log('Content type:', contentType);
+    
+    // Verificar si es una imagen
+    if (!contentType || !contentType.startsWith('image/')) {
+      throw new Error('Response is not an image');
     }
     
     const arrayBuffer = await imgResponse.arrayBuffer();
     const base64 = Buffer.from(arrayBuffer).toString('base64');
-    console.log('Imagen convertida a base64, tamaño:', base64.length);
+    console.log('Image size:', base64.length);
     
-    // Llamar a Claude
+    if (base64.length < 1000) {
+      throw new Error('Image too small, probably an error page');
+    }
+    
+    // Llamar a Claude con tu API key que SÍ tiene créditos
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -40,24 +53,24 @@ export default async function handler(req, res) {
               type: 'image',
               source: {
                 type: 'base64',
-                media_type: 'image/png',
+                media_type: contentType || 'image/png',
                 data: base64
               }
             },
             {
               type: 'text',
-              text: `Look at this Songstats screenshot and extract these metrics. Return ONLY a valid JSON object with no additional text:
+              text: `Extract these metrics from the Songstats screenshot. Return ONLY a JSON object:
 {
-  "artistName": "artist name",
-  "followers": "exact value shown",
-  "streams": "exact value shown",
-  "playlists": "exact value shown",
-  "playlistReach": "exact value shown",
-  "charts": "exact value shown",
-  "shazams": "exact value shown",
-  "videos": "exact value shown",
-  "views": "exact value shown",
-  "djSupports": "exact value shown"
+  "artistName": "name",
+  "followers": "value",
+  "streams": "value",
+  "playlists": "value",
+  "playlistReach": "value",
+  "charts": "value",
+  "shazams": "value",
+  "videos": "value",
+  "views": "value",
+  "djSupports": "value"
 }`
             }
           ]
@@ -65,31 +78,16 @@ export default async function handler(req, res) {
       })
     });
 
-    if (!claudeResponse.ok) {
-      const errorText = await claudeResponse.text();
-      console.error('Claude API error:', errorText);
-      throw new Error(`Claude API error: ${claudeResponse.status}`);
-    }
-
-    const data = await claudeResponse.json();
-    console.log('Respuesta de Claude:', JSON.stringify(data));
+    const claudeData = await claudeResponse.json();
+    console.log('Claude response:', JSON.stringify(claudeData));
     
-    // Verificar que la respuesta tenga el formato correcto
-    if (!data.content || !Array.isArray(data.content) || data.content.length === 0) {
-      throw new Error('Invalid response format from Claude');
+    if (claudeData.error) {
+      throw new Error(`Claude API: ${claudeData.error.message}`);
     }
     
-    const content = data.content[0].text;
-    console.log('Texto extraído:', content);
-    
-    // Limpiar el texto y parsear JSON
+    const content = claudeData.content[0].text;
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in Claude response');
-    }
-    
     const metrics = JSON.parse(jsonMatch[0]);
-    console.log('Métricas parseadas:', metrics);
     
     res.status(200).json({ 
       success: true, 
@@ -97,7 +95,7 @@ export default async function handler(req, res) {
     });
     
   } catch (error) {
-    console.error('Error completo:', error.message);
+    console.error('Error:', error.message);
     res.status(500).json({ 
       success: false, 
       error: error.message 
