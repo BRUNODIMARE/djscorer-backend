@@ -10,7 +10,9 @@ export default async function handler(req, res) {
     const { instagram } = req.body;
     const username = instagram.replace('@', '').replace('https://www.instagram.com/', '').split('/')[0].toLowerCase();
     
-    // LLAMADA REAL A BROWSERLESS
+    console.log('Calling Browserless for:', username);
+    
+    // BROWSERLESS API CALL
     const response = await fetch('https://chrome.browserless.io/content?token=2T3HOcXs5RvAbb6c0099c9c03d87fe1c48b9e5fb8c4194241', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -30,8 +32,9 @@ export default async function handler(req, res) {
       });
     }
     
-    return res.status(404).json({ success: false, error: 'Not found' });
+    return res.status(404).json({ success: false, error: 'Artist not found' });
   } catch (error) {
+    console.error('Browserless error:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 }
