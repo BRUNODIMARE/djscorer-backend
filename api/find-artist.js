@@ -29,9 +29,10 @@ module.exports = async function handler(req, res) {
     
     console.log('Searching for artist:', username);
     
-    // Solo los que sabemos que funcionan
+    // Mapeo manual para artistas conocidos
     const artistMap = {
       'arodes': 'https://songstats.com/artist/utowk0hb/arodes',
+      'arodes_ofc': 'https://songstats.com/artist/utowk0hb/arodes',
       'mochakk': 'https://songstats.com/artist/c72f50i6/mochakk'
     };
     
@@ -42,25 +43,28 @@ module.exports = async function handler(req, res) {
       });
     }
     
-    // Para todos los demás, usar ScrapingBee
+    // Usar ScrapingBee con diferentes selectores
     try {
-      const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=W77QRXZEQ4Q2L13Y7628L6U4L9DLALI9FLRFJH6AOQG57A0GKT0SDAKQV60YRRF5AJKGMZKZRSG1NKRD&url=${encodeURIComponent(`https://songstats.com/search?q=${username}`)}&render_js=true&wait=3000`;
+      const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=W77QRXZEQ4Q2L13Y7628L6U4L9DLALI9FLRFJH6AOQG57A0GKT0SDAKQV60YRRF5AJKGMZKZRSG1NKRD&url=${encodeURIComponent(`https://songstats.com/search?q=${username}`)}&render_js=true&wait=5000&extract_rules=${encodeURIComponent(JSON.stringify({
+        artist_link: {
+          selector: 'a[href*="/artist/"]',
+          type: 'link'
+        }
+      }))}`;
       
       const response = await fetch(scrapingBeeUrl);
+      const data = await response.json();
       
-      if (!response.ok) {
-        throw new Error(`ScrapingBee error: ${response.status}`);
-      }
+      console.log('ScrapingBee response:', data);
       
-      const html = await response.text();
-      const match = html.match(/href="(\/artist\/[^"]+)"/);
-      
-      if (match && match[1]) {
-        console.log('Found via ScrapingBee:', match[1]);
-        return res.status(200).json({ 
-          success: true,
-          songstatsUrl: `https://songstats.com${match[1]}`
-        });
+      if (data.artist_link) {
+        const artistPath = data.artist_link.match(/\/artist\/[^\/]+\/[^\/]+/);
+        if (artistPath) {
+          return res.status(200).json({ 
+            success: true,
+            songstatsUrl: `https://songstats.com${artistPath[0]}`
+          });
+        }
       }
     } catch (scrapingError) {
       console.error('ScrapingBee failed:', scrapingError);
@@ -68,7 +72,7 @@ module.exports = async function handler(req, res) {
     
     return res.status(404).json({ 
       success: false, 
-      error: 'Artist not found. Try using the Songstats URL directly.' 
+      error: 'Artist not found. Please use the Songstats URL directly.' 
     });
     
   } catch (error) {
