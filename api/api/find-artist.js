@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     
     console.log('Searching for artist:', username);
     
-    // Browserless API call
+    // ESTA ES LA PARTE QUE FALTA - BROWSERLESS API CALL
     const browserlessResponse = await fetch('https://chrome.browserless.io/content?token=2T3HOcXs5RvAbb6c0099c9c03d87fe1c48b9e5fb8c4194241', {
       method: 'POST',
       headers: {
