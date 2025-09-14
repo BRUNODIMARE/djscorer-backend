@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -29,42 +29,46 @@ export default async function handler(req, res) {
     
     console.log('Searching for artist:', username);
     
-    // ScrapingBee API
-    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=W77QRXZEQ4Q2L13Y7628L6U4L9DLALI9FLRFJH6AOQG57A0GKT0SDAKQV60YRRF5AJKGMZKZRSG1NKRD&url=${encodeURIComponent(`https://songstats.com/search?q=${username}`)}&render_js=true&wait=3000`;
+    // Solo los que sabemos que funcionan
+    const artistMap = {
+      'arodes': 'https://songstats.com/artist/utowk0hb/arodes',
+      'mochakk': 'https://songstats.com/artist/c72f50i6/mochakk'
+    };
     
-    const response = await fetch(scrapingBeeUrl);
-    
-    if (!response.ok) {
-      throw new Error(`ScrapingBee API error: ${response.status}`);
-    }
-    
-    const html = await response.text();
-    
-    // Buscar el link del artista en el HTML
-    const match = html.match(/href="(\/artist\/[^"]+)"/);
-    
-    if (match && match[1]) {
-      console.log('Artist found:', match[1]);
+    if (artistMap[username]) {
       return res.status(200).json({ 
         success: true,
-        songstatsUrl: `https://songstats.com${match[1]}`
+        songstatsUrl: artistMap[username]
       });
     }
     
-    // Si no encuentra con el primer patrón, intenta otro
-    const altMatch = html.match(/songstats\.com(\/artist\/[^"'\s]+)/);
-    if (altMatch && altMatch[1]) {
-      console.log('Artist found (alt):', altMatch[1]);
-      return res.status(200).json({ 
-        success: true,
-        songstatsUrl: `https://songstats.com${altMatch[1]}`
-      });
+    // Para todos los demás, usar ScrapingBee
+    try {
+      const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=W77QRXZEQ4Q2L13Y7628L6U4L9DLALI9FLRFJH6AOQG57A0GKT0SDAKQV60YRRF5AJKGMZKZRSG1NKRD&url=${encodeURIComponent(`https://songstats.com/search?q=${username}`)}&render_js=true&wait=3000`;
+      
+      const response = await fetch(scrapingBeeUrl);
+      
+      if (!response.ok) {
+        throw new Error(`ScrapingBee error: ${response.status}`);
+      }
+      
+      const html = await response.text();
+      const match = html.match(/href="(\/artist\/[^"]+)"/);
+      
+      if (match && match[1]) {
+        console.log('Found via ScrapingBee:', match[1]);
+        return res.status(200).json({ 
+          success: true,
+          songstatsUrl: `https://songstats.com${match[1]}`
+        });
+      }
+    } catch (scrapingError) {
+      console.error('ScrapingBee failed:', scrapingError);
     }
     
-    console.log('Artist not found for:', username);
     return res.status(404).json({ 
       success: false, 
-      error: 'Artist not found on Songstats' 
+      error: 'Artist not found. Try using the Songstats URL directly.' 
     });
     
   } catch (error) {
