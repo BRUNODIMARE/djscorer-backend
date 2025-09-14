@@ -27,57 +27,38 @@ module.exports = async function handler(req, res) {
       .toLowerCase()
       .trim();
     
-    console.log('Searching for:', username);
+    // Mapeo manual expandido - agrega más artistas aquí
+    const artistMap = {
+      'arodes': 'https://songstats.com/artist/utowk0hb/arodes',
+      'arodes_ofc': 'https://songstats.com/artist/utowk0hb/arodes',
+      'mochakk': 'https://songstats.com/artist/c72f50i6/mochakk',
+      'fredagain': 'https://songstats.com/artist/gz3xm1xn/fred-again',
+      'fred': 'https://songstats.com/artist/gz3xm1xn/fred-again',
+      'disclosure': 'https://songstats.com/artist/0g3b3e5v/disclosure',
+      'fisher': 'https://songstats.com/artist/3nz0e5i7/fisher',
+      'carlcox': 'https://songstats.com/artist/8hz9m2k4/carl-cox',
+      'blackcoffee': 'https://songstats.com/artist/7jx3n9p2/black-coffee',
+      'amelielens': 'https://songstats.com/artist/4kl8m2n6/amelie-lens'
+    };
     
-    // ScrapingBee - con debug
-    const searchUrl = `https://songstats.com/search?q=${username}`;
-    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=W77QRXZEQ4Q2L13Y7628L6U4L9DLALI9FLRFJH6AOQG57A0GKT0SDAKQV60YRRF5AJKGMZKZRSG1NKRD&url=${encodeURIComponent(searchUrl)}&render_js=true&wait=5000`;
-    
-    console.log('Calling ScrapingBee for:', searchUrl);
-    
-    const response = await fetch(scrapingBeeUrl);
-    const html = await response.text();
-    
-    // Log para ver qué está devolviendo
-    console.log('HTML length:', html.length);
-    console.log('First 500 chars:', html.substring(0, 500));
-    
-    // Intentar múltiples patrones
-    const patterns = [
-      /href="(\/artist\/[^"]+)"/,
-      /href='(\/artist\/[^']+)'/,
-      /songstats\.com(\/artist\/[^"'\s]+)/,
-      /<a[^>]+href=["'](\/artist\/[^"']+)["']/
-    ];
-    
-    for (const pattern of patterns) {
-      const match = html.match(pattern);
-      if (match && match[1]) {
-        console.log('Found with pattern:', pattern);
-        return res.status(200).json({ 
-          success: true,
-          songstatsUrl: `https://songstats.com${match[1]}`
-        });
-      }
+    if (artistMap[username]) {
+      return res.status(200).json({ 
+        success: true,
+        songstatsUrl: artistMap[username]
+      });
     }
     
-    // Si no encuentra, devolver información de debug
+    // Para artistas no mapeados, devolver instrucciones claras
     return res.status(404).json({ 
       success: false, 
-      error: 'Artist not found',
-      debug: {
-        searchedFor: username,
-        htmlReceived: html.length > 0,
-        htmlLength: html.length,
-        sample: html.substring(0, 200)
-      }
+      error: `Artist "${username}" not in database. Please go to songstats.com, search for the artist, copy their URL and paste it in the field above.`
     });
     
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error in find-artist:', error);
     return res.status(500).json({ 
       success: false, 
-      error: error.message
+      error: error.message || 'Internal server error'
     });
   }
 }
