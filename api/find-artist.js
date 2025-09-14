@@ -27,59 +27,57 @@ module.exports = async function handler(req, res) {
       .toLowerCase()
       .trim();
     
-    console.log('Searching for artist:', username);
+    console.log('Searching for:', username);
     
-    // Mapeo manual para artistas conocidos
-    const artistMap = {
-      'arodes': 'https://songstats.com/artist/utowk0hb/arodes',
-      'arodes_ofc': 'https://songstats.com/artist/utowk0hb/arodes',
-      'mochakk': 'https://songstats.com/artist/c72f50i6/mochakk'
-    };
+    // ScrapingBee - con debug
+    const searchUrl = `https://songstats.com/search?q=${username}`;
+    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=W77QRXZEQ4Q2L13Y7628L6U4L9DLALI9FLRFJH6AOQG57A0GKT0SDAKQV60YRRF5AJKGMZKZRSG1NKRD&url=${encodeURIComponent(searchUrl)}&render_js=true&wait=5000`;
     
-    if (artistMap[username]) {
-      return res.status(200).json({ 
-        success: true,
-        songstatsUrl: artistMap[username]
-      });
-    }
+    console.log('Calling ScrapingBee for:', searchUrl);
     
-    // Usar ScrapingBee con diferentes selectores
-    try {
-      const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=W77QRXZEQ4Q2L13Y7628L6U4L9DLALI9FLRFJH6AOQG57A0GKT0SDAKQV60YRRF5AJKGMZKZRSG1NKRD&url=${encodeURIComponent(`https://songstats.com/search?q=${username}`)}&render_js=true&wait=5000&extract_rules=${encodeURIComponent(JSON.stringify({
-        artist_link: {
-          selector: 'a[href*="/artist/"]',
-          type: 'link'
-        }
-      }))}`;
-      
-      const response = await fetch(scrapingBeeUrl);
-      const data = await response.json();
-      
-      console.log('ScrapingBee response:', data);
-      
-      if (data.artist_link) {
-        const artistPath = data.artist_link.match(/\/artist\/[^\/]+\/[^\/]+/);
-        if (artistPath) {
-          return res.status(200).json({ 
-            success: true,
-            songstatsUrl: `https://songstats.com${artistPath[0]}`
-          });
-        }
+    const response = await fetch(scrapingBeeUrl);
+    const html = await response.text();
+    
+    // Log para ver qué está devolviendo
+    console.log('HTML length:', html.length);
+    console.log('First 500 chars:', html.substring(0, 500));
+    
+    // Intentar múltiples patrones
+    const patterns = [
+      /href="(\/artist\/[^"]+)"/,
+      /href='(\/artist\/[^']+)'/,
+      /songstats\.com(\/artist\/[^"'\s]+)/,
+      /<a[^>]+href=["'](\/artist\/[^"']+)["']/
+    ];
+    
+    for (const pattern of patterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        console.log('Found with pattern:', pattern);
+        return res.status(200).json({ 
+          success: true,
+          songstatsUrl: `https://songstats.com${match[1]}`
+        });
       }
-    } catch (scrapingError) {
-      console.error('ScrapingBee failed:', scrapingError);
     }
     
+    // Si no encuentra, devolver información de debug
     return res.status(404).json({ 
       success: false, 
-      error: 'Artist not found. Please use the Songstats URL directly.' 
+      error: 'Artist not found',
+      debug: {
+        searchedFor: username,
+        htmlReceived: html.length > 0,
+        htmlLength: html.length,
+        sample: html.substring(0, 200)
+      }
     });
     
   } catch (error) {
-    console.error('Error in find-artist:', error);
+    console.error('Error:', error);
     return res.status(500).json({ 
       success: false, 
-      error: error.message || 'Internal server error'
+      error: error.message
     });
   }
 }
