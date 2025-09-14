@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+  export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -11,31 +11,17 @@ export default async function handler(req, res) {
     const { screenshotUrl } = req.body;
     console.log('Screenshot URL recibido:', screenshotUrl);
     
-    // Intentar obtener el screenshot
+    // Obtener screenshot
     const imgResponse = await fetch(screenshotUrl);
-    console.log('Screenshot response status:', imgResponse.status);
-    
     if (!imgResponse.ok) {
-      throw new Error(`Screenshot service returned ${imgResponse.status}`);
-    }
-    
-    const contentType = imgResponse.headers.get('content-type');
-    console.log('Content type:', contentType);
-    
-    // Verificar si es una imagen
-    if (!contentType || !contentType.startsWith('image/')) {
-      throw new Error('Response is not an image');
+      throw new Error(`Failed to fetch screenshot: ${imgResponse.status}`);
     }
     
     const arrayBuffer = await imgResponse.arrayBuffer();
     const base64 = Buffer.from(arrayBuffer).toString('base64');
-    console.log('Image size:', base64.length);
+    console.log('Imagen convertida, tamaño:', base64.length);
     
-    if (base64.length < 1000) {
-      throw new Error('Image too small, probably an error page');
-    }
-    
-    // Llamar a Claude con tu API key que SÍ tiene créditos
+    // Llamar a Claude con el prompt mejorado
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -53,41 +39,81 @@ export default async function handler(req, res) {
               type: 'image',
               source: {
                 type: 'base64',
-                media_type: contentType || 'image/png',
+                media_type: 'image/png',
                 data: base64
               }
             },
             {
               type: 'text',
-              text: `Extract these metrics from the Songstats screenshot. Return ONLY a JSON object:
+              text: `You are analyzing a Songstats artist profile screenshot. Extract ALL visible metrics.
+
+IMPORTANT: Look for these metrics in the screenshot:
+- Artist name (usually at the top with verification badge)
+- Followers (look for "Followers" label)
+- Streams (look for "Streams" label)
+- Playlists (look for "Playlists" label)
+- Playlist Reach (look for "Playlist Reach" label)
+- Charts (look for "Charts" label)
+- Shazams (look for "Shazams" label)
+- Videos (look for "Videos" label)
+- Views (look for "Views" label)
+- DJ Supports (look for "DJ Supports" or "Supports" label)
+
+INSTRUCTIONS:
+1. Look carefully at each metric section
+2. Extract the EXACT value shown (e.g., "14.5K", "613K", "140")
+3. If a metric is not visible in the screenshot, use "0"
+4. Keep the format as shown (K for thousands, M for millions)
+
+Return ONLY a JSON object with this exact structure:
 {
-  "artistName": "name",
-  "followers": "value",
-  "streams": "value",
-  "playlists": "value",
-  "playlistReach": "value",
-  "charts": "value",
-  "shazams": "value",
-  "videos": "value",
-  "views": "value",
-  "djSupports": "value"
-}`
+  "artistName": "exact artist name",
+  "followers": "exact value or 0",
+  "streams": "exact value or 0",
+  "playlists": "exact value or 0",
+  "playlistReach": "exact value or 0",
+  "charts": "exact value or 0",
+  "shazams": "exact value or 0",
+  "videos": "exact value or 0",
+  "views": "exact value or 0",
+  "djSupports": "exact value or 0"
+}
+
+NO additional text, ONLY the JSON object.`
             }
           ]
         }]
       })
     });
 
-    const claudeData = await claudeResponse.json();
-    console.log('Claude response:', JSON.stringify(claudeData));
+    const data = await claudeResponse.json();
+    console.log('Respuesta de Claude:', JSON.stringify(data));
     
-    if (claudeData.error) {
-      throw new Error(`Claude API: ${claudeData.error.message}`);
+    if (data.error) {
+      throw new Error(`Claude API: ${data.error.message}`);
     }
     
-    const content = claudeData.content[0].text;
+    const content = data.content[0].text;
     const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in response');
+    }
+    
     const metrics = JSON.parse(jsonMatch[0]);
+    
+    // Validar campos faltantes
+    const requiredFields = [
+      'artistName', 'followers', 'streams', 'playlists', 
+      'playlistReach', 'charts', 'shazams', 'videos', 'views', 'djSupports'
+    ];
+    
+    requiredFields.forEach(field => {
+      if (!metrics[field] || metrics[field] === '') {
+        metrics[field] = field === 'artistName' ? 'Unknown Artist' : '0';
+      }
+    });
+    
+    console.log('Métricas finales:', metrics);
     
     res.status(200).json({ 
       success: true, 
