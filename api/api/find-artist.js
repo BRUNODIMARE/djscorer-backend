@@ -1,79 +1,37 @@
 export default async function handler(req, res) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const { instagram } = req.body;
+    const username = instagram.replace('@', '').replace('https://www.instagram.com/', '').split('/')[0].toLowerCase();
     
-    if (!instagram) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Instagram username required' 
-      });
-    }
-    
-    // Limpiar username
-    const username = instagram
-      .replace('@', '')
-      .replace('https://www.instagram.com/', '')
-      .replace('instagram.com/', '')
-      .split('/')[0]
-      .split('?')[0]
-      .toLowerCase()
-      .trim();
-    
-    console.log('Searching for:', username);
-    
-    // AQUÍ ESTÁ BROWSERLESS CON TU API KEY
-    const browserlessResponse = await fetch('https://chrome.browserless.io/content?token=2T3HOcXs5RvAbb6c0099c9c03d87fe1c48b9e5fb8c4194241', {
+    // LLAMADA REAL A BROWSERLESS
+    const response = await fetch('https://chrome.browserless.io/content?token=2T3HOcXs5RvAbb6c0099c9c03d87fe1c48b9e5fb8c4194241', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         url: `https://songstats.com/search?q=${username}`,
         selector: 'a[href*="/artist/"]'
       })
     });
     
-    const html = await browserlessResponse.text();
-    console.log('Browserless responded, HTML length:', html.length);
-    
-    // Buscar el link del artista en el HTML
+    const html = await response.text();
     const match = html.match(/href="(\/artist\/[^"]+)"/);
     
     if (match) {
-      const fullUrl = `https://songstats.com${match[1]}`;
-      console.log('Found artist URL:', fullUrl);
       return res.status(200).json({ 
         success: true,
-        songstatsUrl: fullUrl,
-        username: username
+        songstatsUrl: `https://songstats.com${match[1]}`
       });
     }
     
-    console.log('No artist found for:', username);
-    return res.status(404).json({ 
-      success: false,
-      error: 'Artist not found on Songstats',
-      username: username
-    });
-    
+    return res.status(404).json({ success: false, error: 'Not found' });
   } catch (error) {
-    console.error('Server error:', error);
-    return res.status(500).json({ 
-      success: false,
-      error: error.message || 'Server error'
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 }
