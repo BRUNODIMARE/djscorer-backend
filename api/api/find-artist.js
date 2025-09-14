@@ -1,16 +1,13 @@
 export default async function handler(req, res) {
-  // CORS headers PRIMERO
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   
-  // Manejar OPTIONS request
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
-  // Solo aceptar POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -37,26 +34,36 @@ export default async function handler(req, res) {
     
     console.log('Searching for:', username);
     
-    // Por ahora, usar mapeo manual (Browserless después)
-    const knownArtists = {
-      'realblackcoffee': 'https://songstats.com/artist/tf4aezjl/black-coffee',
-      'blackcoffee': 'https://songstats.com/artist/tf4aezjl/black-coffee',
-      'arodes': 'https://songstats.com/artist/utowk0hb/arodes',
-      'mochakk': 'https://songstats.com/artist/c72f50i6/mochakk'
-    };
+    // Llamar a Browserless con tu API key
+    const browserlessResponse = await fetch('https://chrome.browserless.io/content?token=2T3HOcXs5RvAbb6c0099c9c03d87fe1c48b9e5fb8c4194241', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: `https://songstats.com/search?q=${username}`,
+        selector: 'a[href*="/artist/"]'
+      })
+    });
     
-    if (knownArtists[username]) {
+    const html = await browserlessResponse.text();
+    console.log('HTML received, length:', html.length);
+    
+    // Buscar el link del artista
+    const match = html.match(/href="(\/artist\/[^"]+)"/);
+    
+    if (match) {
+      const fullUrl = `https://songstats.com${match[1]}`;
       return res.status(200).json({ 
         success: true,
-        songstatsUrl: knownArtists[username],
+        songstatsUrl: fullUrl,
         username: username
       });
     }
     
-    // Si no está en la base de datos
     return res.status(404).json({ 
       success: false,
-      error: 'Artist not found in database',
+      error: 'Artist not found on Songstats',
       username: username
     });
     
@@ -64,7 +71,7 @@ export default async function handler(req, res) {
     console.error('Server error:', error);
     return res.status(500).json({ 
       success: false,
-      error: 'Server error'
+      error: error.message || 'Server error'
     });
   }
 }
