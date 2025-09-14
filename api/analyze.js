@@ -77,132 +77,20 @@ NO additional text, ONLY the JSON object.`
     
     const metrics = JSON.parse(jsonMatch[0]);
     
-    // SEGUNDO PASO: Análisis profesional detallado
-    const analysisResponse = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'claude-3-sonnet-20240229',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: `You are an elite DJ industry analyst with 15+ years of experience. Analyze these metrics and provide SPECIFIC, ACTIONABLE insights.
-
-ARTIST DATA:
-- Name: ${metrics.artistName || 'Unknown Artist'}
-- Total Followers: ${metrics.followers || '0'}
-- Total Streams: ${metrics.streams || '0'}
-- Playlist Count: ${metrics.playlists || '0'}
-- Playlist Reach: ${metrics.playlistReach || '0'}
-- Chart Entries: ${metrics.charts || '0'}
-
-YOUR ANALYSIS MUST INCLUDE:
-
-1. SCORE CALCULATION (0-100):
-   - Followers (30%): <50K=10pts, 50-100K=25pts, 100-250K=45pts, 250-500K=65pts, 500K-1M=80pts, >1M=100pts
-   - Streams (35%): <1M=5pts, 1-10M=20pts, 10-50M=40pts, 50-100M=60pts, 100-500M=80pts, >500M=100pts
-   - Playlists (25%): <100=10pts, 100-500=25pts, 500-2000=45pts, 2000-5000=70pts, >5000=100pts
-   - Charts (10%): <50=20pts, 50-200=40pts, 200-500=70pts, >500=100pts
-
-2. TIER CLASSIFICATION:
-   - TIER 1 (85-100): Global Headliner
-   - TIER 2 (70-84): Regional Star
-   - TIER 3 (55-69): Rising Talent
-   - TIER 4 (40-54): Local Favorite
-   - TIER 5 (<40): Beginner
-
-3. SPECIFIC ANALYSIS:
-   - Genre identification
-   - Similar artists (name real DJs)
-   - Engagement ratio analysis
-   - Market position
-
-4. GROWTH STRATEGY:
-   - Immediate actions (30 days)
-   - Quarterly goals
-   - Breakthrough strategy
-
-5. REVENUE & OPPORTUNITIES:
-   - Booking fee range in euros
-   - Suitable festivals/venues
-   - Label recommendations
-
-Return a JSON with this structure:
-{
-  "score": [number],
-  "tier": "TIER X - [Name]",
-  "genre_analysis": "[genre and style]",
-  "similar_artists": ["artist1", "artist2", "artist3"],
-  "strengths": ["strength1", "strength2", "strength3"],
-  "weaknesses": ["weakness1", "weakness2"],
-  "growth_strategy": {
-    "immediate": "[30-day action]",
-    "quarterly": "[3-month goal]",
-    "breakthrough": "[next tier strategy]"
-  },
-  "revenue": {
-    "booking_fee": "€X - €Y",
-    "streaming_monthly": "€X",
-    "touring_level": "local/regional/international"
-  },
-  "opportunities": {
-    "labels": ["label1", "label2"],
-    "festivals": ["festival1", "festival2"],
-    "collaborations": ["artist1", "artist2"]
-  },
-  "custom_insight": "[unique observation]",
-  "next_tier_requirements": "[what they need for next tier]"
-}`
-        }]
-      })
-    });
+    // Calcular score básico
+    const simpleScore = calculateSimpleScore(metrics);
+    const tier = getTier(simpleScore);
     
-    const analysisData = await analysisResponse.json();
-    console.log('Análisis completo:', JSON.stringify(analysisData));
+    // Generar análisis enriquecido localmente (sin segunda llamada a Claude por ahora)
+    const enrichedAnalysis = generateLocalAnalysis(metrics, simpleScore, tier);
     
-    if (analysisData.error) {
-      // Si falla el análisis, devolver métricas básicas con score simple
-      const simpleScore = calculateSimpleScore(metrics);
-      return res.status(200).json({ 
-        success: true, 
-        metrics,
-        analysis: {
-          score: simpleScore,
-          tier: getTier(simpleScore)
-        }
-      });
-    }
-    
-    const analysisContent = analysisData.content[0].text;
-    const analysisMatch = analysisContent.match(/\{[\s\S]*\}/);
-    
-    let analysis = {};
-    if (analysisMatch) {
-      try {
-        analysis = JSON.parse(analysisMatch[0]);
-      } catch (e) {
-        console.error('Error parsing analysis:', e);
-        const simpleScore = calculateSimpleScore(metrics);
-        analysis = {
-          score: simpleScore,
-          tier: getTier(simpleScore)
-        };
-      }
-    }
-    
-    // Combinar métricas y análisis
+    // Respuesta final con todos los datos
     const finalResponse = {
       success: true,
       metrics,
-      analysis,
-      // Mantener compatibilidad con formato anterior
-      score: analysis.score,
-      tier: analysis.tier,
-      ...analysis
+      score: simpleScore,
+      tier: tier,
+      ...enrichedAnalysis
     };
     
     console.log('Respuesta final:', JSON.stringify(finalResponse));
@@ -217,17 +105,105 @@ Return a JSON with this structure:
   }
 }
 
-// Funciones auxiliares para cálculo básico si falla el análisis
+// Función para generar análisis local enriquecido
+function generateLocalAnalysis(metrics, score, tier) {
+  const followers = parseMetricValue(metrics.followers);
+  const streams = parseMetricValue(metrics.streams);
+  const playlists = parseInt(metrics.playlists) || 0;
+  const ratio = streams / followers;
+  
+  // Determinar género basado en métricas
+  let genre = "Electronic/Dance";
+  if (ratio > 500) genre = "Tech House/Techno";
+  else if (ratio > 300) genre = "House/Progressive";
+  else if (ratio > 150) genre = "Commercial Dance/EDM";
+  
+  // Artistas similares basados en tier
+  const similarArtistsByTier = {
+    'TIER 1': ["David Guetta", "Martin Garrix", "Tiësto"],
+    'TIER 2': ["Fisher", "Chris Lake", "Vintage Culture"],
+    'TIER 3': ["Mason Maynard", "Beltran", "Wade"],
+    'TIER 4': ["Local DJs", "Emerging Artists", "Residents"],
+    'TIER 5': ["Bedroom DJs", "Beginners", "Amateur Artists"]
+  };
+  
+  const tierKey = tier.split(' - ')[0];
+  
+  return {
+    genre_analysis: `${genre} artist with ${ratio > 200 ? 'strong' : 'moderate'} engagement metrics. Market position suggests ${tier.includes('1') || tier.includes('2') ? 'international' : 'regional'} appeal.`,
+    
+    similar_artists: similarArtistsByTier[tierKey] || ["Independent Artists"],
+    
+    strengths: [
+      ratio > 200 ? "Excellent streams-to-followers ratio" : "Growing streaming presence",
+      playlists > 2000 ? "Strong playlist penetration" : "Building playlist presence",
+      followers > 100000 ? "Established fanbase" : "Developing audience"
+    ],
+    
+    weaknesses: [
+      followers < 50000 ? "Need to grow social media following" : null,
+      playlists < 1000 ? "Limited playlist reach" : null,
+      ratio < 150 ? "Low engagement rate" : null
+    ].filter(Boolean),
+    
+    growth_strategy: {
+      immediate: followers < 100000 ? 
+        "Focus on social media growth - aim for 20% increase in 30 days" : 
+        "Maintain release consistency - 1 track per month minimum",
+      quarterly: `Target: ${Math.round(followers * 1.5 / 1000)}K followers, ${Math.round(streams * 1.3 / 1000000)}M streams`,
+      breakthrough: score < 70 ? 
+        "Collaborate with established artists in your genre" : 
+        "Launch international tour or residency"
+    },
+    
+    revenue: {
+      booking_fee: score >= 85 ? "€15,000 - €50,000" :
+                   score >= 70 ? "€5,000 - €15,000" :
+                   score >= 55 ? "€2,000 - €5,000" :
+                   score >= 40 ? "€500 - €2,000" :
+                   "€200 - €500",
+      streaming_monthly: `€${Math.round(streams / 250000) * 100}`,
+      touring_level: score >= 70 ? "International" : score >= 55 ? "Regional" : "Local"
+    },
+    
+    opportunities: {
+      labels: score >= 70 ? 
+        ["Defected", "Toolroom", "Anjunabeats"] :
+        score >= 55 ?
+        ["Solid Grooves", "Repopulate Mars", "Hot Creations"] :
+        ["Local Labels", "Independent Release", "Self-Release"],
+      
+      festivals: score >= 70 ?
+        ["Tomorrowland", "Ultra", "EDC"] :
+        score >= 55 ?
+        ["Medusa", "Dreambeach", "Regional Festivals"] :
+        ["Local Events", "Club Nights", "Warm-up Slots"],
+      
+      collaborations: score >= 55 ?
+        ["Artists one tier above", "Remix opportunities", "Label compilations"] :
+        ["Local collaborations", "DJ collectives", "Producer groups"]
+    },
+    
+    custom_insight: ratio > 300 ? 
+      "Exceptional engagement rate suggests highly dedicated fanbase - perfect for exclusive releases and VIP experiences" :
+      ratio > 150 ?
+      "Solid engagement indicates growth potential - focus on converting casual listeners to followers" :
+      "Building phase - prioritize consistent content and authentic fan connections",
+    
+    next_tier_requirements: `To reach ${score >= 85 ? 'maintain TIER 1' : score >= 70 ? 'TIER 1' : score >= 55 ? 'TIER 2' : score >= 40 ? 'TIER 3' : 'TIER 4'}: Need ${score >= 70 ? '500K+' : score >= 55 ? '250K+' : score >= 40 ? '100K+' : '50K+'} followers and ${score >= 70 ? '100M+' : score >= 55 ? '50M+' : score >= 40 ? '10M+' : '5M+'} streams`
+  };
+}
+
+// Funciones auxiliares
 function calculateSimpleScore(metrics) {
   let score = 0;
   
-  // Convertir valores a números
   const followers = parseMetricValue(metrics.followers);
   const streams = parseMetricValue(metrics.streams);
   const playlists = parseInt(metrics.playlists) || 0;
   const charts = parseInt(metrics.charts) || 0;
   
-  // Calcular score básico
+  // Calcular score
   if (followers > 1000000) score += 30;
   else if (followers > 500000) score += 24;
   else if (followers > 250000) score += 20;
@@ -271,4 +247,3 @@ function getTier(score) {
   if (score >= 40) return 'TIER 4 - Local Favorite';
   return 'TIER 5 - Beginner';
 }
-// Updated: Force redeploy
