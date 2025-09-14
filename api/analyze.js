@@ -271,3 +271,4 @@ function getTier(score) {
   if (score >= 40) return 'TIER 4 - Local Favorite';
   return 'TIER 5 - Beginner';
 }
+// Updated: Force redeploy
