@@ -34,7 +34,7 @@ export default async function handler(req, res) {
     
     console.log('Searching for:', username);
     
-    // Llamar a Browserless con tu API key
+    // AQUÍ ESTÁ BROWSERLESS CON TU API KEY
     const browserlessResponse = await fetch('https://chrome.browserless.io/content?token=2T3HOcXs5RvAbb6c0099c9c03d87fe1c48b9e5fb8c4194241', {
       method: 'POST',
       headers: {
@@ -47,13 +47,14 @@ export default async function handler(req, res) {
     });
     
     const html = await browserlessResponse.text();
-    console.log('HTML received, length:', html.length);
+    console.log('Browserless responded, HTML length:', html.length);
     
-    // Buscar el link del artista
+    // Buscar el link del artista en el HTML
     const match = html.match(/href="(\/artist\/[^"]+)"/);
     
     if (match) {
       const fullUrl = `https://songstats.com${match[1]}`;
+      console.log('Found artist URL:', fullUrl);
       return res.status(200).json({ 
         success: true,
         songstatsUrl: fullUrl,
@@ -61,6 +62,7 @@ export default async function handler(req, res) {
       });
     }
     
+    console.log('No artist found for:', username);
     return res.status(404).json({ 
       success: false,
       error: 'Artist not found on Songstats',
