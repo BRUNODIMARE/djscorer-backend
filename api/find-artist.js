@@ -27,38 +27,26 @@ export default async function handler(req, res) {
       .toLowerCase()
       .trim();
     
-    console.log('Searching for artist:', username);
+    // MAPEO MANUAL TEMPORAL - Agrega más artistas aquí
+    const artistMap = {
+      'arodes': 'https://songstats.com/artist/utowk0hb/arodes',
+      'mochakk': 'https://songstats.com/artist/c72f50i6/mochakk',
+      'fred': 'https://songstats.com/artist/gz3xm1xn/fred-again',
+      'fredagain': 'https://songstats.com/artist/gz3xm1xn/fred-again',
+      'fisherprice': 'https://songstats.com/artist/xyz123/fisher',
+      'disclosure': 'https://songstats.com/artist/abc456/disclosure'
+    };
     
-    const browserlessResponse = await fetch('https://chrome.browserless.io/content?token=2T3HOcXs5RvAbb6c0099c9c03d87fe1c48b9e5fb8c4194241', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        url: `https://songstats.com/search?q=${username}`,
-        selector: 'a[href*="/artist/"]'
-      })
-    });
-    
-    if (!browserlessResponse.ok) {
-      throw new Error(`Browserless API error: ${browserlessResponse.status}`);
-    }
-    
-    const html = await browserlessResponse.text();
-    const match = html.match(/href="(\/artist\/[^"]+)"/);
-    
-    if (match && match[1]) {
-      console.log('Artist found:', match[1]);
+    if (artistMap[username]) {
       return res.status(200).json({ 
         success: true,
-        songstatsUrl: `https://songstats.com${match[1]}`
+        songstatsUrl: artistMap[username]
       });
     }
     
-    console.log('Artist not found for:', username);
     return res.status(404).json({ 
       success: false, 
-      error: 'Artist not found on Songstats' 
+      error: 'Artist not in database. Add manually or fix Browserless.' 
     });
     
   } catch (error) {
