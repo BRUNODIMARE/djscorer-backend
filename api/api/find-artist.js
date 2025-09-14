@@ -1,67 +1,70 @@
 export default async function handler(req, res) {
-  // Habilitar CORS
+  // CORS headers PRIMERO
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   
+  // Manejar OPTIONS request
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    res.status(200).end();
+    return;
   }
 
-  const { instagram } = req.body;
-  
-  if (!instagram) {
-    return res.status(400).json({ error: 'Instagram username required' });
+  // Solo aceptar POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
-  
-  // Limpiar username
-  const username = instagram.replace('@', '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-  
+
   try {
-    // Llamar a Browserless
-    const browserlessUrl = 'https://chrome.browserless.io/content?token=2T3HOcXs5RvAbb6c0099c9c03d87fe1c48b9e5fb8c4194241';
+    const { instagram } = req.body;
     
-    const response = await fetch(browserlessUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url: `https://songstats.com/search?q=${username}`,
-        waitForSelector: 'a[href*="/artist/"]',
-        waitForTimeout: 3000,
-        elements: [{
-          selector: 'a[href*="/artist/"]:first-of-type',
-          attribute: 'href'
-        }]
-      })
-    });
+    if (!instagram) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Instagram username required' 
+      });
+    }
     
-    const data = await response.json();
-    console.log('Browserless response:', JSON.stringify(data));
+    // Limpiar username
+    const username = instagram
+      .replace('@', '')
+      .replace('https://www.instagram.com/', '')
+      .replace('instagram.com/', '')
+      .split('/')[0]
+      .split('?')[0]
+      .toLowerCase()
+      .trim();
     
-    if (data && data.data && data.data.length > 0) {
-      const href = data.data[0].href || data.data[0].attributes?.href;
-      const fullUrl = href.startsWith('http') ? href : `https://songstats.com${href}`;
-      
+    console.log('Searching for:', username);
+    
+    // Por ahora, usar mapeo manual (Browserless después)
+    const knownArtists = {
+      'realblackcoffee': 'https://songstats.com/artist/tf4aezjl/black-coffee',
+      'blackcoffee': 'https://songstats.com/artist/tf4aezjl/black-coffee',
+      'arodes': 'https://songstats.com/artist/utowk0hb/arodes',
+      'mochakk': 'https://songstats.com/artist/c72f50i6/mochakk'
+    };
+    
+    if (knownArtists[username]) {
       return res.status(200).json({ 
         success: true,
-        songstatsUrl: fullUrl,
+        songstatsUrl: knownArtists[username],
         username: username
       });
     }
     
+    // Si no está en la base de datos
     return res.status(404).json({ 
       success: false,
-      error: 'Artist not found on Songstats',
+      error: 'Artist not found in database',
       username: username
     });
     
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Server error:', error);
     return res.status(500).json({ 
       success: false,
-      error: error.message
+      error: 'Server error'
     });
   }
 }
