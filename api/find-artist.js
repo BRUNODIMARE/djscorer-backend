@@ -27,26 +27,44 @@ export default async function handler(req, res) {
       .toLowerCase()
       .trim();
     
-    // MAPEO MANUAL TEMPORAL - Agrega más artistas aquí
-    const artistMap = {
-      'arodes': 'https://songstats.com/artist/utowk0hb/arodes',
-      'mochakk': 'https://songstats.com/artist/c72f50i6/mochakk',
-      'fred': 'https://songstats.com/artist/gz3xm1xn/fred-again',
-      'fredagain': 'https://songstats.com/artist/gz3xm1xn/fred-again',
-      'fisherprice': 'https://songstats.com/artist/xyz123/fisher',
-      'disclosure': 'https://songstats.com/artist/abc456/disclosure'
-    };
+    console.log('Searching for artist:', username);
     
-    if (artistMap[username]) {
+    // ScrapingBee API
+    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=W77QRXZEQ4Q2L13Y7628L6U4L9DLALI9FLRFJH6AOQG57A0GKT0SDAKQV60YRRF5AJKGMZKZRSG1NKRD&url=${encodeURIComponent(`https://songstats.com/search?q=${username}`)}&render_js=true&wait=3000`;
+    
+    const response = await fetch(scrapingBeeUrl);
+    
+    if (!response.ok) {
+      throw new Error(`ScrapingBee API error: ${response.status}`);
+    }
+    
+    const html = await response.text();
+    
+    // Buscar el link del artista en el HTML
+    const match = html.match(/href="(\/artist\/[^"]+)"/);
+    
+    if (match && match[1]) {
+      console.log('Artist found:', match[1]);
       return res.status(200).json({ 
         success: true,
-        songstatsUrl: artistMap[username]
+        songstatsUrl: `https://songstats.com${match[1]}`
       });
     }
     
+    // Si no encuentra con el primer patrón, intenta otro
+    const altMatch = html.match(/songstats\.com(\/artist\/[^"'\s]+)/);
+    if (altMatch && altMatch[1]) {
+      console.log('Artist found (alt):', altMatch[1]);
+      return res.status(200).json({ 
+        success: true,
+        songstatsUrl: `https://songstats.com${altMatch[1]}`
+      });
+    }
+    
+    console.log('Artist not found for:', username);
     return res.status(404).json({ 
       success: false, 
-      error: 'Artist not in database. Add manually or fix Browserless.' 
+      error: 'Artist not found on Songstats' 
     });
     
   } catch (error) {
