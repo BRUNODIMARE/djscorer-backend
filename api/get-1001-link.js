@@ -27,20 +27,23 @@ module.exports = async function handler(req, res) {
     const response = await fetch(scrapingBeeUrl);
     const html = await response.text();
     
-    // Buscar todos los posibles patrones
-    const patterns = [
-      /\/artist\/([a-z0-9]+)\//gi,
-      /artist_id["\s:=]+["']?([a-z0-9]+)/gi,
-      /data-artist["\s:=]+["']?([a-z0-9]+)/gi
-    ];
-    
+    // Buscar el canonical link o alternate URLs
     let artistId = null;
-    for (const pattern of patterns) {
-      const match = html.match(pattern);
-      if (match) {
-        artistId = match[1];
-        break;
-      }
+    
+    // Patrón 1: canonical URL
+    const canonicalMatch = html.match(/canonical.*?artist\/([a-z0-9]+)\//i);
+    if (canonicalMatch) artistId = canonicalMatch[1];
+    
+    // Patrón 2: href="/artist/ID/"
+    if (!artistId) {
+      const hrefMatch = html.match(/href=["']\/artist\/([a-z0-9]+)\//i);
+      if (hrefMatch) artistId = hrefMatch[1];
+    }
+    
+    // Patrón 3: JSON-LD o data attributes
+    if (!artistId) {
+      const dataMatch = html.match(/"@id".*?artist\/([a-z0-9]+)/i);
+      if (dataMatch) artistId = dataMatch[1];
     }
     
     const artistSlug = artist.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -51,9 +54,7 @@ module.exports = async function handler(req, res) {
       artist: artist,
       tracklists_id: artistId,
       songstats_url: songstatsUrl,
-      cached: false,
-      html_length: html.length,
-      html_sample: html.substring(0, 1000) // Ver primeros 1000 caracteres
+      cached: false
     };
     
     cache[cleanName] = result;
