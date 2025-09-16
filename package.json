@@ -1,5 +1,7 @@
 {
-  "name": "dj-scorer-backend",
-  "version": "1.0.0",
-  "description": "Backend for DJ Scorer App"
+  "dependencies": {
+    "express": "^4.18.2",
+    "puppeteer": "^21.6.1",
+    "@anthropic-ai/sdk": "^0.9.0"
+  }
 }
