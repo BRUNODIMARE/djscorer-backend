@@ -20,15 +20,14 @@ module.exports = async function handler(req, res) {
     
     const tracklistsUrl = `https://www.1001tracklists.com/dj/${cleanName}/index.html`;
     
-    // Seguir redirección para obtener ID
-    const response = await fetch(tracklistsUrl, {
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
+    // Usar ScrapingBee
+    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_API_KEY}&url=${encodeURIComponent(tracklistsUrl)}&render_js=false`;
     
-    const finalUrl = response.url;
+    const response = await fetch(scrapingBeeUrl);
+    const data = await response.json();
+    
+    // La URL final después de redirección
+    const finalUrl = data.resolved_url || tracklistsUrl;
     const match = finalUrl.match(/\/artist\/([^\/]+)\//);
     const artistId = match ? match[1] : null;
     
