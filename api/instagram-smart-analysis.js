@@ -4,24 +4,6 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
 });
 
-async function search1001Tracklists(artistName) {
-  try {
-    const searchUrl = `https://www.1001tracklists.com/dj/${artistName.toLowerCase().replace(/\s+/g, '')}/index.html`;
-    const response = await fetch(searchUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
-    
-    const url = response.url;
-    const match = url.match(/\/artist\/([^\/]+)\//);
-    
-    return match ? match[1] : null;
-  } catch (error) {
-    return null;
-  }
-}
-
 async function getSpotifyToken() {
   const response = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
@@ -78,28 +60,22 @@ module.exports = async function handler(req, res) {
       max_tokens: 10,
       messages: [{
         role: 'user',
-        content: `Instagram: @${clean}\n\nSpotify:\n${artistList}\n\nWhich number (0-${artists.length-1}) matches best? Reply ONLY with the number.`
+        content: `Instagram: @${clean}\n\nSpotify:\n${artistList}\n\nWhich number matches best? Reply ONLY with the number.`
       }]
     });
     
     const bestIdx = parseInt(message.content[0].text.trim()) || 0;
     const artist = artists[bestIdx] || artists[0];
     
-    // Buscar en 1001Tracklists
-    const tracklistsId = await search1001Tracklists(artist.name);
-    const artistSlug = artist.name.toLowerCase().replace(/\s+/g, '-');
-    
-    const songstatsUrl = tracklistsId 
-      ? `https://songstats.com/artist/${tracklistsId}/${artistSlug}`
-      : `https://songstats.com/artist/${artistSlug}`;
-    
+    // Usar nombre del artista como slug
+    const artistSlug = artist.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const songstatsUrl = `https://songstats.com/artist/${artistSlug}`;
     const screenshotUrl = `https://shot.screenshotapi.net/screenshot?token=XMX3B6Z-28W45J9-MJG5AEA-VEZRCQ3&url=${encodeURIComponent(songstatsUrl)}&width=1440&height=900&delay=3000`;
     
     return res.json({
       success: true,
       artist_name: artist.name,
       spotify_id: artist.id,
-      tracklists_id: tracklistsId,
       songstats_url: songstatsUrl,
       screenshot_url: screenshotUrl,
       spotify_data: {
