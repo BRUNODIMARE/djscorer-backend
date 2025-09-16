@@ -20,18 +20,17 @@ module.exports = async function handler(req, res) {
     
     const tracklistsUrl = `https://www.1001tracklists.com/dj/${cleanName}/index.html`;
     
-    // Usar ScrapingBee
-    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_API_KEY}&url=${encodeURIComponent(tracklistsUrl)}&render_js=false`;
+    // ScrapingBee - seguir redirecciones
+    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_API_KEY}&url=${encodeURIComponent(tracklistsUrl)}&return_page_source=false`;
     
     const response = await fetch(scrapingBeeUrl);
-    const data = await response.json();
     
-    // La URL final después de redirección
-    const finalUrl = data.resolved_url || tracklistsUrl;
+    // ScrapingBee pone la URL final en headers
+    const finalUrl = response.headers.get('spb-resolved-url') || response.headers.get('x-final-url') || tracklistsUrl;
+    
     const match = finalUrl.match(/\/artist\/([^\/]+)\//);
     const artistId = match ? match[1] : null;
     
-    // Construir URL de Songstats
     const artistSlug = artist.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     const songstatsUrl = artistId 
       ? `https://songstats.com/artist/${artistId}/${artistSlug}`
@@ -42,7 +41,11 @@ module.exports = async function handler(req, res) {
       artist: artist,
       tracklists_id: artistId,
       tracklists_url: finalUrl,
-      songstats_url: songstatsUrl
+      songstats_url: songstatsUrl,
+      debug: {
+        response_status: response.status,
+        headers: Object.fromEntries(response.headers.entries())
+      }
     });
     
   } catch (error) {
