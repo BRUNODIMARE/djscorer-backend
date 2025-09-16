@@ -27,23 +27,13 @@ module.exports = async function handler(req, res) {
     const response = await fetch(scrapingBeeUrl);
     const html = await response.text();
     
-    // Múltiples patrones para buscar el ID
+    // Buscar el enlace específico de Songstats con su parámetro ref
     let artistId = null;
     
-    // Patrón 1: songstats.com/ID?
-    const match1 = html.match(/songstats\.com\/([a-z0-9]+)\?/i);
-    if (match1) artistId = match1[1];
-    
-    // Patrón 2: songstats.com/ID" o songstats.com/ID'
-    if (!artistId) {
-      const match2 = html.match(/songstats\.com\/([a-z0-9]+)[\"\']/i);
-      if (match2) artistId = match2[1];
-    }
-    
-    // Patrón 3: /artist/ID/ en cualquier lugar
-    if (!artistId) {
-      const match3 = html.match(/\/artist\/([a-z0-9]+)\//i);
-      if (match3) artistId = match3[1];
+    // Patrón específico: href="https://songstats.com/ID?ref=
+    const match = html.match(/href=["\']https?:\/\/songstats\.com\/([a-z0-9]+)\?ref=/i);
+    if (match) {
+      artistId = match[1];
     }
     
     const artistSlug = artist.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -56,8 +46,7 @@ module.exports = async function handler(req, res) {
       artist: artist,
       tracklists_id: artistId,
       songstats_url: songstatsUrl,
-      cached: false,
-      html_sample: html.substring(html.indexOf('songstats') - 50, html.indexOf('songstats') + 100) // Debug
+      cached: false
     };
     
     cache[cleanName] = result;
