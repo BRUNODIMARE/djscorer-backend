@@ -1,9 +1,3 @@
-const Anthropic = require('@anthropic-ai/sdk');
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
-
 async function getSpotifyToken() {
   const response = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
@@ -18,6 +12,25 @@ async function getSpotifyToken() {
   
   const data = await response.json();
   return data.access_token;
+}
+
+async function callClaude(prompt) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 10,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  
+  const data = await response.json();
+  return data.content[0].text;
 }
 
 module.exports = async function handler(req, res) {
@@ -52,22 +65,15 @@ module.exports = async function handler(req, res) {
     }
     
     const artistList = artists.map((a, i) => 
-      `${i}. ${a.name} - Followers: ${a.followers?.total || 0}`
+      `${i}. ${a.name} - ${a.followers?.total || 0} followers`
     ).join('\n');
     
-    const message = await anthropic.messages.create({
-      model: 'claude-3-haiku-20240307',
-      max_tokens: 10,
-      messages: [{
-        role: 'user',
-        content: `Instagram: @${clean}\n\nSpotify:\n${artistList}\n\nWhich number matches best? Reply ONLY with the number.`
-      }]
-    });
+    const prompt = `Instagram: @${clean}\n\nArtists:\n${artistList}\n\nWhich number (0-${artists.length-1}) matches best? Reply ONLY with the number.`;
     
-    const bestIdx = parseInt(message.content[0].text.trim()) || 0;
+    const response = await callClaude(prompt);
+    const bestIdx = parseInt(response.trim()) || 0;
     const artist = artists[bestIdx] || artists[0];
     
-    // Usar nombre del artista como slug
     const artistSlug = artist.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     const songstatsUrl = `https://songstats.com/artist/${artistSlug}`;
     const screenshotUrl = `https://shot.screenshotapi.net/screenshot?token=XMX3B6Z-28W45J9-MJG5AEA-VEZRCQ3&url=${encodeURIComponent(songstatsUrl)}&width=1440&height=900&delay=3000`;
