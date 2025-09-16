@@ -27,27 +27,14 @@ module.exports = async function handler(req, res) {
     const response = await fetch(scrapingBeeUrl);
     const html = await response.text();
     
-    // Buscar el canonical link o alternate URLs
-    let artistId = null;
-    
-    // Patrón 1: canonical URL
-    const canonicalMatch = html.match(/canonical.*?artist\/([a-z0-9]+)\//i);
-    if (canonicalMatch) artistId = canonicalMatch[1];
-    
-    // Patrón 2: href="/artist/ID/"
-    if (!artistId) {
-      const hrefMatch = html.match(/href=["']\/artist\/([a-z0-9]+)\//i);
-      if (hrefMatch) artistId = hrefMatch[1];
-    }
-    
-    // Patrón 3: JSON-LD o data attributes
-    if (!artistId) {
-      const dataMatch = html.match(/"@id".*?artist\/([a-z0-9]+)/i);
-      if (dataMatch) artistId = dataMatch[1];
-    }
+    // Buscar el enlace de Songstats en el HTML
+    const songstatsMatch = html.match(/songstats\.com\/([a-z0-9]+)\?/i);
+    const artistId = songstatsMatch ? songstatsMatch[1] : null;
     
     const artistSlug = artist.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    const songstatsUrl = artistId ? `https://songstats.com/artist/${artistId}/${artistSlug}` : null;
+    const songstatsUrl = artistId 
+      ? `https://songstats.com/artist/${artistId}/${artistSlug}`
+      : null;
     
     const result = {
       success: true,
