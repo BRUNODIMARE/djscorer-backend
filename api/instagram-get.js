@@ -13,12 +13,20 @@ module.exports = async function handler(req, res) {
     return res.json({ error: 'No handle provided' });
   }
   
-  const clean = handle.replace('@', '').replace(/instagram\.com\//g, '');
+  // Limpiar el handle - extraer solo el username
+  let clean = handle
+    .replace('@', '')
+    .replace(/https?:\/\/(www\.)?instagram\.com\//g, '')
+    .replace(/\//g, '')
+    .trim();
+  
+  // Construir URL simple de Songstats (sin ID real)
+  const songstatsUrl = `https://songstats.com/artist/${clean}`;
   
   return res.json({
     success: true,
     instagram: clean,
-    songstats_url: `https://songstats.com/artist/${clean}`,
-    message: `Try searching for ${clean} on Songstats`
+    songstats_url: songstatsUrl,
+    message: `Try searching manually for ${clean} on Songstats`
   });
 }
