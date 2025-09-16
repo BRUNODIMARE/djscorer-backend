@@ -33,6 +33,27 @@ async function callClaude(prompt) {
   return data.content[0].text;
 }
 
+async function get1001TracklistsId(artistName) {
+  try {
+    const cleanName = artistName.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+    const searchUrl = `https://www.1001tracklists.com/dj/${cleanName}/`;
+    
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      redirect: 'follow'
+    });
+    
+    const finalUrl = response.url;
+    const match = finalUrl.match(/\/artist\/([^\/]+)\//);
+    
+    return match ? match[1] : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -68,20 +89,28 @@ module.exports = async function handler(req, res) {
       `${i}. ${a.name} - ${a.followers?.total || 0} followers`
     ).join('\n');
     
-    const prompt = `Instagram: @${clean}\n\nArtists:\n${artistList}\n\nWhich number (0-${artists.length-1}) matches best? Reply ONLY with the number.`;
+    const prompt = `Instagram: @${clean}\n\nArtists:\n${artistList}\n\nWhich number matches best? Reply ONLY with the number.`;
     
-    const response = await callClaude(prompt);
-    const bestIdx = parseInt(response.trim()) || 0;
+    const claudeResponse = await callClaude(prompt);
+    const bestIdx = parseInt(claudeResponse.trim()) || 0;
     const artist = artists[bestIdx] || artists[0];
     
+    // Obtener ID de 1001Tracklists
+    const tracklistsId = await get1001TracklistsId(artist.name);
+    
+    // Construir URL de Songstats
     const artistSlug = artist.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    const songstatsUrl = `https://songstats.com/artist/${artistSlug}`;
+    const songstatsUrl = tracklistsId 
+      ? `https://songstats.com/artist/${tracklistsId}/${artistSlug}`
+      : `https://songstats.com/artist/${artistSlug}`;
+    
     const screenshotUrl = `https://shot.screenshotapi.net/screenshot?token=XMX3B6Z-28W45J9-MJG5AEA-VEZRCQ3&url=${encodeURIComponent(songstatsUrl)}&width=1440&height=900&delay=3000`;
     
     return res.json({
       success: true,
       artist_name: artist.name,
       spotify_id: artist.id,
+      tracklists_id: tracklistsId,
       songstats_url: songstatsUrl,
       screenshot_url: screenshotUrl,
       spotify_data: {
