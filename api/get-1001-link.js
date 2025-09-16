@@ -13,39 +13,26 @@ module.exports = async function handler(req, res) {
   }
   
   try {
-    const cleanName = artist
-      .toLowerCase()
-      .replace(/\s+/g, '')
-      .replace(/[^a-z0-9]/g, '');
-    
+    const cleanName = artist.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
     const tracklistsUrl = `https://www.1001tracklists.com/dj/${cleanName}/index.html`;
-    
-    // ScrapingBee - seguir redirecciones
-    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_API_KEY}&url=${encodeURIComponent(tracklistsUrl)}&return_page_source=false`;
+    const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/?api_key=${process.env.SCRAPINGBEE_API_KEY}&url=${encodeURIComponent(tracklistsUrl)}`;
     
     const response = await fetch(scrapingBeeUrl);
+    const html = await response.text();
     
-    // ScrapingBee pone la URL final en headers
-    const finalUrl = response.headers.get('spb-resolved-url') || response.headers.get('x-final-url') || tracklistsUrl;
-    
-    const match = finalUrl.match(/\/artist\/([^\/]+)\//);
-    const artistId = match ? match[1] : null;
+    // Buscar el ID en el HTML
+    // Buscar links como: /artist/3fqtqn/black-coffee
+    const artistMatch = html.match(/\/artist\/([a-z0-9]+)\//i);
+    const artistId = artistMatch ? artistMatch[1] : null;
     
     const artistSlug = artist.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    const songstatsUrl = artistId 
-      ? `https://songstats.com/artist/${artistId}/${artistSlug}`
-      : null;
+    const songstatsUrl = artistId ? `https://songstats.com/artist/${artistId}/${artistSlug}` : null;
     
     return res.json({
       success: true,
       artist: artist,
       tracklists_id: artistId,
-      tracklists_url: finalUrl,
-      songstats_url: songstatsUrl,
-      debug: {
-        response_status: response.status,
-        headers: Object.fromEntries(response.headers.entries())
-      }
+      songstats_url: songstatsUrl
     });
     
   } catch (error) {
