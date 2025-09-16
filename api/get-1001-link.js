@@ -1,4 +1,3 @@
-// Caché en memoria (se resetea cada deploy pero funciona para sesión)
 const cache = {};
 
 module.exports = async function handler(req, res) {
@@ -17,7 +16,6 @@ module.exports = async function handler(req, res) {
   
   const cleanName = artist.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
   
-  // Verificar caché primero
   if (cache[cleanName]) {
     return res.json({ ...cache[cleanName], cached: true });
   }
@@ -29,8 +27,21 @@ module.exports = async function handler(req, res) {
     const response = await fetch(scrapingBeeUrl);
     const html = await response.text();
     
-    const artistMatch = html.match(/\/artist\/([a-z0-9]+)\//i);
-    const artistId = artistMatch ? artistMatch[1] : null;
+    // Buscar todos los posibles patrones
+    const patterns = [
+      /\/artist\/([a-z0-9]+)\//gi,
+      /artist_id["\s:=]+["']?([a-z0-9]+)/gi,
+      /data-artist["\s:=]+["']?([a-z0-9]+)/gi
+    ];
+    
+    let artistId = null;
+    for (const pattern of patterns) {
+      const match = html.match(pattern);
+      if (match) {
+        artistId = match[1];
+        break;
+      }
+    }
     
     const artistSlug = artist.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     const songstatsUrl = artistId ? `https://songstats.com/artist/${artistId}/${artistSlug}` : null;
@@ -40,12 +51,12 @@ module.exports = async function handler(req, res) {
       artist: artist,
       tracklists_id: artistId,
       songstats_url: songstatsUrl,
-      cached: false
+      cached: false,
+      html_length: html.length,
+      html_sample: html.substring(0, 1000) // Ver primeros 1000 caracteres
     };
     
-    // Guardar en caché
     cache[cleanName] = result;
-    
     return res.json(result);
     
   } catch (error) {
