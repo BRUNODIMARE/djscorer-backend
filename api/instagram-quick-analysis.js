@@ -7,10 +7,15 @@ module.exports = async function handler(req, res) {
   
   try {
     // 1. Limpiar input
-    const cleanArtist = instagram
+    let cleanArtist = instagram
       .replace('@', '')
       .replace(/https?:\/\/(www\.)?instagram\.com\//g, '')
       .trim();
+    
+    // Si contiene ciudad/país, usar solo la primera palabra
+    if (cleanArtist.length > 10) {
+      cleanArtist = cleanArtist.split(/[^a-zA-Z]/)[0];
+    }
     
     // 2. Buscar en Spotify
     const authString = Buffer.from(
@@ -32,7 +37,7 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to get Spotify token' });
     }
     
-    // Buscar con más resultados para mejor match
+    // Buscar con nombre simplificado
     const searchRes = await fetch(
       `https://api.spotify.com/v1/search?q=${encodeURIComponent(cleanArtist)}&type=artist&limit=10`,
       { headers: { 'Authorization': `Bearer ${tokenData.access_token}` }}
@@ -40,17 +45,27 @@ module.exports = async function handler(req, res) {
     
     const searchData = await searchRes.json();
     
-    // Buscar match exacto o el más relevante
+    // Buscar match más relevante
     let spotifyArtist = null;
     
     if (searchData.artists?.items?.length > 0) {
-      // Intentar match exacto primero
-      spotifyArtist = searchData.artists.items.find(artist => 
-        artist.name.toLowerCase().replace(/\s+/g, '') === cleanArtist.toLowerCase().replace(/\s+/g, '')
-      );
+      // Filtrar artistas con géneros electrónicos
+      const electronicArtists = searchData.artists.items.filter(artist => {
+        const genres = (artist.genres || []).join(' ').toLowerCase();
+        return genres.includes('house') || 
+               genres.includes('techno') || 
+               genres.includes('electronic') ||
+               genres.includes('dance') ||
+               genres.includes('minimal');
+      });
       
-      // Si no hay match exacto, tomar el más popular
-      if (!spotifyArtist) {
+      // Si hay artistas electrónicos, elegir el más popular
+      if (electronicArtists.length > 0) {
+        spotifyArtist = electronicArtists.reduce((prev, current) => 
+          (current.popularity > prev.popularity) ? current : prev
+        );
+      } else {
+        // Si no, elegir el más popular en general
         spotifyArtist = searchData.artists.items.reduce((prev, current) => 
           (current.popularity > prev.popularity) ? current : prev
         );
@@ -64,7 +79,7 @@ module.exports = async function handler(req, res) {
       });
     }
     
-    // 3. Construir URL de Songstats con Spotify ID
+    // 3. Construir URL de Songstats
     const songstatsUrl = `https://songstats.com/artist/${spotifyArtist.id}`;
     
     // 4. Capturar screenshot
@@ -77,7 +92,7 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to capture screenshot' });
     }
     
-    // 5. Retornar URL del screenshot para análisis
+    // 5. Retornar datos
     return res.json({
       success: true,
       artist_name: spotifyArtist.name,
@@ -87,7 +102,8 @@ module.exports = async function handler(req, res) {
       spotify_data: {
         followers: spotifyArtist.followers?.total || 0,
         popularity: spotifyArtist.popularity || 0,
-        image: spotifyArtist.images?.[0]?.url
+        image: spotifyArtist.images?.[0]?.url,
+        genres: spotifyArtist.genres || []
       }
     });
     
