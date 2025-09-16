@@ -1,4 +1,13 @@
 module.exports = async function handler(req, res) {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -81,7 +90,6 @@ Which artist number (1-${searchData.artists.items.length}) best matches the Inst
       const selectedArtist = searchData.artists.items[selectedIndex];
       return await generateResponse(selectedArtist);
     } else {
-      // Fallback al más popular
       const artist = searchData.artists.items[0];
       return await generateResponse(artist);
     }
